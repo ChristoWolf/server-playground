@@ -3,11 +3,13 @@
 package upload
 
 import (
-	"crypto/sha256"
 	"io"
 	"mime"
 	"net/http"
 	"os"
+	"strings"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -16,10 +18,10 @@ const (
 	// ApiUrl is the REST API endpoint of the upload service.
 	ApiUrl = "/api" + Url
 	// staticDir is the directory containing static content
-	// like index.html and the upload directory.
-	staticDir = "./static/"
+	// associated to uploading, like index.html for the upload service web UI.
+	staticDir = "./upload/static/"
 	// uploadDir is the directory where uploaded files are stored.
-	uploadDir = staticDir + "upload/"
+	uploadDir = "./files/"
 	// formName is the name of the form field containing the file.
 	formName = "inputFile"
 )
@@ -33,7 +35,7 @@ func ApiEndpoint() http.Handler {
 		case http.MethodPost:
 			handlePost(w, r)
 		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
 }
@@ -79,37 +81,41 @@ func handleForm(w http.ResponseWriter, r *http.Request) error {
 
 // Handles POST requests of non-form-data media to the API.
 func handleOther(w http.ResponseWriter, r *http.Request) error {
-	// Check if the media type is different from multipart/form-data.
+	// Check if the media type is different from multipart/form-data
+	// as that should have been handled beforehand.
 	if r.Header.Get("Content-Type") == "multipart/form-data" {
 		return http.ErrNotSupported
 	}
-	// Detect the file type.
-	// For that, only the first 512 bytes are needed.
-	buffer := make([]byte, 512)
-	_, err := r.Body.Read(buffer)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return err
-	}
-	contentType := http.DetectContentType(buffer)
-	// We will use an arbitrary file extension
-	// which matches the detected content type.
+	// To provide an extension to the file name,
+	// we will use the file extension
+	// which matches the content-type header.
+	// WE do NOT use http.DetectContentType here,
+	// as that requires us to read from the body,
+	// which would remove those read bytes from the io.Reader.
+	contentType := r.Header.Get("Content-Type")
 	typeCandidates, err := mime.ExtensionsByType(contentType)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return err
 	}
 	var ext string
-	if typeCandidates != nil || len(typeCandidates) <= 0 {
-		ext = typeCandidates[0]
+	if len(typeCandidates) > 0 {
+		preferred := strings.SplitAfter(contentType, "/")[1]
+		for _, candidate := range typeCandidates {
+			// Match with the preferred one.
+			if strings.HasSuffix(candidate, preferred) {
+				ext = candidate
+				break
+			}
+		}
+		// If none matched, use the first one.
+		if ext == "" {
+			ext = typeCandidates[0]
+		}
 	}
-	// Compute the file's hash for the file name.
-	hash := sha256.New()
-	if _, err := io.Copy(hash, r.Body); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return err
-	}
-	path := uploadDir + string(hash.Sum(nil)) + ext
+	// generate a random UUID for the file name.
+	uuid := uuid.NewString()
+	path := uploadDir + uuid + ext
 	// Write the request body to a new file.
 	if err := handleFile(w, path, r.Body); err != nil {
 		return err
