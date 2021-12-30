@@ -9,10 +9,10 @@ import (
 
 // Main entry point of server playground.
 func main() {
-	// // Register the file server route.
-	// http.Handle("/", http.FileServer(http.Dir("./static")))
+	// Instantiate a mux for registering handlers.
+	mux := http.NewServeMux()
 	// Register the upload API route.
-	http.Handle(upload.ApiUrl, upload.ApiEndpoint())
+	mux.Handle(upload.ApiUrl, upload.ApiEndpoint())
 	// Start the server.
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }

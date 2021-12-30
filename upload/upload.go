@@ -3,6 +3,7 @@
 package upload
 
 import (
+	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -23,7 +24,7 @@ const (
 	// uploadDir is the directory where uploaded files are stored.
 	uploadDir = "./files/"
 	// formName is the name of the form field containing the file.
-	formName = "inputFile"
+	formName = "file"
 )
 
 // Api returns an http.Handler that serves the upload API.
@@ -42,26 +43,26 @@ func ApiEndpoint() http.Handler {
 
 // POST request wrapper function.
 func handlePost(w http.ResponseWriter, r *http.Request) {
-	if err := handleForm(w, r); err != nil && err != http.ErrNotMultipart {
-		return // Error should already be handled.
+	if err := handleForm(w, r); err == nil ||
+		(err != nil && !errors.Is(err, http.ErrNotMultipart)) {
+		return // Either the form was handled correctly or the error was already written to the response.
 	}
-	if err := handleOther(w, r); err != nil {
-		if err == http.ErrNotSupported {
-			http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
-		}
+	if err := handleOther(w, r); err != nil && errors.Is(err, http.ErrNotSupported) {
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 	}
+	// Otherwise, the error was already written to the response.
 }
 
 // Handles POST requests of form-data media to the API.
 func handleForm(w http.ResponseWriter, r *http.Request) error {
 	// Check if the media type is multipart/form-data.
-	if r.Header.Get("Content-Type") != "multipart/form-data" {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return http.ErrNotMultipart
 	}
 	// Parse the form.
 	err := r.ParseMultipartForm(32 << 20)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return err
 	}
 	// Get the file from the form and open it.
@@ -83,7 +84,7 @@ func handleForm(w http.ResponseWriter, r *http.Request) error {
 func handleOther(w http.ResponseWriter, r *http.Request) error {
 	// Check if the media type is different from multipart/form-data
 	// as that should have been handled beforehand.
-	if r.Header.Get("Content-Type") == "multipart/form-data" {
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		return http.ErrNotSupported
 	}
 	// To provide an extension to the file name,
