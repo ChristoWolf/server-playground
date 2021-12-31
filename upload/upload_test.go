@@ -23,6 +23,7 @@ const (
 
 // TestApiEndpointForm tests the upload API endpoint by posting a form containing a file.
 func TestApiEndpointHandlerForm(t *testing.T) {
+	// t.Parallel()
 	fileName := "test.txt"
 	testContent := "test content form"
 	// Create a new request.
