@@ -3,25 +3,24 @@
 package response
 
 import (
-	"encoding/json"
+	"mime"
+	"path/filepath"
 )
 
-type MarshalUnmarshaler interface {
-	json.Marshaler
-	json.Unmarshaler
-}
-
 type JsonDto struct {
-	Status  int    `json:"status"`
-	Message string `json:"message"`
-	Nested  any    `json:"nested"`
-	Error   error  `json:"error"`
+	Status      int      `json:"status"`
+	Message     string   `json:"message"`
+	ErrorString string   `json:"error,omitempty"`
+	File        *FileDto `json:"file,omitempty"`
 }
 
-// func (dto *JsonDto) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(dto)
-// }
+type FileDto struct {
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type"`
+}
 
-// func (dto *JsonDto) UnmarshalJSON(data []byte) error {
-// 	return json.Unmarshal(data, dto)
-// }
+func NewFileDto(fileName string) *FileDto {
+	name := filepath.Clean(filepath.Base(fileName))
+	mimeType := mime.TypeByExtension(filepath.Ext(name))
+	return &FileDto{Name: name, MimeType: mimeType}
+}

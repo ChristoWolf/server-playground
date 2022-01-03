@@ -13,52 +13,87 @@ import (
 	"github.com/christowolf/server-playground/response"
 )
 
-// TestMarshal tests the marshaling of a response DTO (JsonDto) as JSON.
-func TestMarshal(t *testing.T) {
+// TestMarshalUnmarshal tests the marshaling/unmarshaling/from of a response DTO (JsonDto) to JSON.
+//
+// The test checks if
+//
+// - the marshalled JSON contains the status code, message, error string and file name,
+//
+// - and the unmarshalled DTO represents the original DTO.
+//
+// These units are tested in combination here to prevent redundant code and computation.
+func TestMarshalUnmarshal(t *testing.T) {
 	t.Parallel()
 	var dtos = []*response.JsonDto{
-		&response.JsonDto{
+		{
 			Status:  200,
 			Message: http.StatusText(200),
 		},
-		&response.JsonDto{
-			Status: 404,
-			Nested: &response.JsonDto{Status: 500, Message: "nested content"},
-			Error:  errors.New("error content"),
+		{
+			Status:  201,
+			Message: http.StatusText(201) + ": file created",
+			File:    response.NewFileDto("test.txt"),
+		},
+		{
+			Status:      404,
+			ErrorString: errors.New("error content").Error(),
 		},
 	}
 	for _, dto := range dtos {
 		dto := dto
 		t.Run(fmt.Sprintf("%v", dto), func(t *testing.T) {
 			t.Parallel()
-			// Marshal the DTO as JSON.
-			json, err := json.Marshal(dto)
+			// Act: Marshal the DTO as JSON.
+			jsonData, err := json.Marshal(dto)
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}
 			// Check if the marshaled JSON contains the correct values.
-			failed := checkValues(t, string(json), dto)
+			failed := checkValues(t, string(jsonData), dto)
 			if failed {
-				t.Fatalf("value(s) not found in JSON: %v", string(json))
+				t.Errorf("value(s) not found in JSON: %v", string(jsonData))
+			}
+			// Act: Unmarshal the JSON to a DTO.
+			got := &response.JsonDto{}
+			err = json.Unmarshal(jsonData, got)
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+			// Check if the unmarshalled DTO represents the original DTO.
+			if !reflect.DeepEqual(got, dto) {
+				t.Errorf("expected: %v, got: %v", dto, got)
 			}
 		})
 	}
 }
 
-// Inspired by https://stackoverflow.com/a/18927729.
-func checkValues(t *testing.T, jsonString string, referenceDto *response.JsonDto) (failed bool) {
-	v := reflect.ValueOf(*referenceDto)
-	for i := 0; i < v.NumField(); i++ {
-		var stringValue string
-		value := v.Field(i).Interface()
-		if value == nil {
-			stringValue = "null"
-		} else {
-			stringValue = fmt.Sprintf("%v", value)
-		}
-		if !strings.Contains(jsonString, stringValue) {
+func checkValues(t *testing.T, jsonString string, dto *response.JsonDto) (failed bool) {
+	t.Helper()
+	// Check if the JSON contains the status code.
+	if !strings.Contains(jsonString, fmt.Sprint(dto.Status)) {
+		failed = true
+		t.Errorf("expected status: %v", dto.Status)
+	}
+	// Check if the JSON contains the message.
+	if !strings.Contains(jsonString, dto.Message) {
+		failed = true
+		t.Errorf("expected message: %v", dto.Message)
+	}
+	// Check if the JSON contains the error string.
+	if dto.ErrorString != "" && !strings.Contains(jsonString, dto.ErrorString) {
+		failed = true
+		t.Errorf("expected error string: %v", dto.ErrorString)
+	}
+	if dto.File != nil {
+		// Check if the JSON contains the file name.
+		if !strings.Contains(jsonString, dto.File.Name) {
 			failed = true
-			t.Errorf("expected value: %v, got: %v", stringValue, jsonString)
+			t.Errorf("expected file name: %v", dto.File.Name)
+		}
+		// Check if the JSON contains the file mime type.
+		if !strings.Contains(jsonString, dto.File.MimeType) {
+			failed = true
+			t.Errorf("expected file mime type: %v", dto.File.MimeType)
 		}
 	}
 	return
