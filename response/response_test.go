@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/quick"
 
 	"github.com/christowolf/server-playground/response"
 )
@@ -26,16 +27,16 @@ func TestMarshalUnmarshal(t *testing.T) {
 	t.Parallel()
 	var dtos = []*response.JsonDto{
 		{
-			Status:  200,
-			Message: http.StatusText(200),
+			Status:  http.StatusOK,
+			Message: http.StatusText(http.StatusOK),
 		},
 		{
-			Status:  201,
-			Message: http.StatusText(201) + ": file created",
+			Status:  http.StatusCreated,
+			Message: http.StatusText(http.StatusCreated) + ": file created",
 			File:    response.NewFileDto("test.txt"),
 		},
 		{
-			Status:      404,
+			Status:      http.StatusNotFound,
 			ErrorString: errors.New("error content").Error(),
 		},
 	}
@@ -67,6 +68,18 @@ func TestMarshalUnmarshal(t *testing.T) {
 	}
 }
 
+// TestMarshalUnmarshalPropertySpec applies property based testing
+// to probe for inputs which provoke marshalling errors or
+// mismatches between the original and marshalled + unmarshalled DTO.
+func TestMarshalUnmarshalProperty(t *testing.T) {
+	c := &quick.Config{MaxCount: 100000}
+	f := propertySpec
+	if err := quick.Check(f, c); err != nil {
+		t.Error(err)
+	}
+}
+
+// checkValues is a test helper which checks if a given JSON contains given values.
 func checkValues(t *testing.T, jsonString string, dto *response.JsonDto) (failed bool) {
 	t.Helper()
 	// Check if the JSON contains the status code.
@@ -97,4 +110,18 @@ func checkValues(t *testing.T, jsonString string, dto *response.JsonDto) (failed
 		}
 	}
 	return
+}
+
+// propertySpec is the property specification used for property based testing.
+func propertySpec(status uint16, message, errorString, name string) bool {
+	dto := &response.JsonDto{
+		Status:      status,
+		Message:     message,
+		ErrorString: errorString,
+		File:        response.NewFileDto(name),
+	}
+	var got = &response.JsonDto{}
+	jsonData, err := json.Marshal(dto)
+	json.Unmarshal(jsonData, got)
+	return err == nil && reflect.DeepEqual(got, dto)
 }
