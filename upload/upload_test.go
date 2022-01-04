@@ -25,6 +25,9 @@ const (
 func TestApiEndpointHandlerForm(t *testing.T) {
 	// t.Parallel()
 	fileName := "test.txt"
+	expectedPath := upload.UploadDir + fileName
+	// Register the file cleanup.
+	fileCleanup(t, expectedPath)
 	testContent := "test content form"
 	// Create a new request.
 	// For this, we also need an appropriate request body,
@@ -47,7 +50,6 @@ func TestApiEndpointHandlerForm(t *testing.T) {
 		t.Errorf("expected status code: %v, got: %v", http.StatusCreated, w.Code)
 	}
 	// Check if the file was uploaded correctly.
-	expectedPath := upload.UploadDir + fileName
 	if _, err := os.Stat(expectedPath); err != nil {
 		t.Fatalf("expected file: %v, got error: %v", expectedPath, err)
 	}
@@ -59,15 +61,14 @@ func TestApiEndpointHandlerForm(t *testing.T) {
 	if string(gotContent) != testContent {
 		t.Errorf("expected file content: %v, got: %v", testContent, string(gotContent))
 	}
-	// Clean up the file.
-	if err = os.Remove(expectedPath); err != nil {
-		t.Errorf("cleanup failed for file: %v, got error: %v", expectedPath, err)
-	}
 }
 
 // TestApiEndpointForm tests the upload API endpoint by posting binary content.
 func TestApiEndpointHandlerOther(t *testing.T) {
 	fileName := "test.txt"
+	expectedPath := upload.UploadDir + fileName
+	// Register the file cleanup.
+	fileCleanup(t, expectedPath)
 	testContent := "test content binary"
 	// Create a new request.
 	// For this, we also need an appropriate request body
@@ -86,7 +87,6 @@ func TestApiEndpointHandlerOther(t *testing.T) {
 		t.Errorf("expected status code: %v, got: %v", http.StatusCreated, w.Code)
 	}
 	// Check if the file was uploaded correctly.
-	expectedPath := upload.UploadDir + fileName
 	if _, err := os.Stat(expectedPath); err != nil {
 		t.Fatalf("expected file: %v, got error: %v", expectedPath, err)
 	}
@@ -98,8 +98,15 @@ func TestApiEndpointHandlerOther(t *testing.T) {
 	if string(gotContent) != testContent {
 		t.Errorf("expected file content: %v, got: %v", testContent, string(gotContent))
 	}
-	// Clean up the file.
-	if err = os.Remove(expectedPath); err != nil {
-		t.Errorf("cleanup failed for file: %v, got error: %v", expectedPath, err)
-	}
+}
+
+// fileCleanup executes file cleanup after test execution.
+// If an error is encountered during os.Remove,
+// it is communicated to the testing.T instance.
+func fileCleanup(t *testing.T, path string) {
+	t.Cleanup(func() {
+		if err := os.Remove(path); err != nil {
+			t.Errorf("cleanup failed for file: %v, got error: %v", path, err)
+		}
+	})
 }
