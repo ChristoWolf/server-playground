@@ -3,13 +3,17 @@
 package upload
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/christowolf/server-playground/response"
 	"github.com/google/uuid"
 )
 
@@ -145,8 +149,26 @@ func handleFile(w http.ResponseWriter, filePath string, container io.ReadCloser)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return err
 	}
-	// Set an appropriate status code and return.
-	w.WriteHeader(http.StatusCreated)
+	// Set an appropriate response with JSON body and return.
+	status := http.StatusCreated
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(status)
+	respDto := &response.JsonDto{
+		Status:  uint16(status),
+		Message: fmt.Sprintf("file created: %s", http.StatusText(status)),
+		File:    response.NewFileDto(filePath),
+	}
+	body, err := json.Marshal(respDto)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+	length, err := w.Write(body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+	w.Header().Add("Content-Length", strconv.Itoa(length))
 	return nil
 }
 

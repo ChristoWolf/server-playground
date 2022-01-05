@@ -3,22 +3,24 @@ package upload_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/christowolf/server-playground/response"
 	"github.com/christowolf/server-playground/upload"
 )
 
 const (
 	ctMultipart = "multipart/form-data"
 	uri         = upload.ApiUrl
+	testDomain  = "http://testdomain.com"
 )
 
 // TestApiEndpointForm tests the upload API endpoint by posting a form containing a file.
@@ -38,7 +40,7 @@ func TestApiEndpointHandlerForm(t *testing.T) {
 	content := strings.NewReader(testContent)
 	io.Copy(fileWriter, content)
 	writer.Close()
-	r := httptest.NewRequest(http.MethodPost, "http://testdomain.com"+uri, body)
+	r := httptest.NewRequest(http.MethodPost, testDomain+uri, body)
 	r.Header.Add("Content-Type", writer.FormDataContentType())
 	// Create a new recorder.
 	w := httptest.NewRecorder()
@@ -65,23 +67,29 @@ func TestApiEndpointHandlerForm(t *testing.T) {
 
 // TestApiEndpointForm tests the upload API endpoint by posting binary content.
 func TestApiEndpointHandlerOther(t *testing.T) {
-	fileName := "test.txt"
-	expectedPath := upload.UploadDir + fileName
-	// Register the file cleanup.
-	fileCleanup(t, expectedPath)
+	ext := ".txt"
 	testContent := "test content binary"
 	// Create a new request.
 	// For this, we also need an appropriate request body
 	// containing binary data.
 	content := strings.NewReader(testContent)
-	r := httptest.NewRequest(http.MethodPost, "http://testdomain.com"+uri, content)
-	ct := mime.TypeByExtension(filepath.Ext(fileName))
+	r := httptest.NewRequest(http.MethodPost, testDomain+uri, content)
+	ct := mime.TypeByExtension(ext)
 	r.Header.Add("Content-Type", ct)
 	// Create a new recorder.
 	w := httptest.NewRecorder()
 	// Call the API endpoint.
 	sut := upload.ApiEndpoint()
 	sut.ServeHTTP(w, r)
+	// Extract the file name from the response.
+	resp := &response.JsonDto{}
+	if err := json.Unmarshal(w.Body.Bytes(), resp); err != nil {
+		t.Fatalf("expected no unmarshalling error, got: %v", err)
+	}
+	fileName := resp.File.Name
+	expectedPath := upload.UploadDir + fileName
+	// Register the file cleanup.
+	fileCleanup(t, expectedPath)
 	// Check the response code.
 	if w.Code != http.StatusCreated {
 		t.Errorf("expected status code: %v, got: %v", http.StatusCreated, w.Code)
