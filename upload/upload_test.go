@@ -108,6 +108,38 @@ func TestApiEndpointHandlerOther(t *testing.T) {
 	}
 }
 
+// TestApiEndpointHandlerDisallowedMethod tests if the upload API endpoint
+// responds with a 405 status code for disallowed methods.
+func TestApiEndpointHandlerDisallowedMethod(t *testing.T) {
+	// t.Parallel()
+	methods := []string{
+		http.MethodConnect,
+		http.MethodDelete,
+		http.MethodHead,
+		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPut,
+		http.MethodTrace,
+	}
+	for _, method := range methods {
+		method := method
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+			// Create a new request.
+			r := httptest.NewRequest(method, testDomain+uri, nil)
+			// Create a new recorder.
+			w := httptest.NewRecorder()
+			// Call the API endpoint.
+			sut := upload.ApiEndpoint()
+			sut.ServeHTTP(w, r)
+			// Check the response code.
+			if w.Code != http.StatusMethodNotAllowed {
+				t.Errorf("expected status code: %v, got: %v", http.StatusMethodNotAllowed, w.Code)
+			}
+		})
+	}
+}
+
 // fileCleanup executes file cleanup after test execution.
 // If an error is encountered during os.Remove,
 // it is communicated to the testing.T instance.

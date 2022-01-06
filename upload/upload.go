@@ -35,8 +35,9 @@ const (
 func ApiEndpoint() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		// case "GET":
-		// 	http.ServeFile(w, r, staticDir + "index.html")
+		// TODO: GET should either return a list of files or a single file.
+		// case http.MethodGet:
+		// 	handleGet(w, r)
 		case http.MethodPost:
 			handlePost(w, r)
 		default:
@@ -98,17 +99,19 @@ func handleOther(w http.ResponseWriter, r *http.Request) error {
 	// as that requires us to read from the body,
 	// which would remove those read bytes from the io.Reader.
 	contentType := r.Header.Get("Content-Type")
-	typeCandidates, err := mime.ExtensionsByType(contentType)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return err
-	}
 	var ext string
-	if len(typeCandidates) > 0 {
+	if strings.Contains(contentType, "text/plain") {
+		ext = ".txt"
+	} else {
+		typeCandidates, err := mime.ExtensionsByType(contentType)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return err
+		}
 		preferred := strings.SplitAfter(contentType, "/")[1]
 		for _, candidate := range typeCandidates {
 			// Match with the preferred one.
-			if strings.HasSuffix(candidate, preferred) {
+			if strings.Contains(preferred, strings.TrimPrefix(candidate, ".")) {
 				ext = candidate
 				break
 			}
