@@ -3,7 +3,10 @@
 package response
 
 import (
+	"encoding/json"
+	"fmt"
 	"mime"
+	"net/http"
 	"path/filepath"
 )
 
@@ -36,4 +39,21 @@ func NewFileDto(fileName string) *FileDto {
 	name := filepath.Clean(filepath.Base(fileName))
 	mimeType := mime.TypeByExtension(filepath.Ext(name))
 	return &FileDto{Name: name, MimeType: mimeType}
+}
+
+// Error writes various error information to the response in JSON format.
+// Based on http.Error.
+func Error(w http.ResponseWriter, error string, code uint16) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(int(code))
+	resp := &JsonDto{
+		Status:      code,
+		ErrorString: error,
+	}
+	jsonData, err := json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Fprint(w, string(jsonData))
 }
